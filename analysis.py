@@ -208,20 +208,25 @@ y = df_games.blue_win.to_numpy()
 X_train, X_test, y_train, y_test = train_test_split(
 	X, y, test_size=0.2, random_state=42)
 
+
+
+
+
+
+
+'''
+
 lr_model = LogisticRegression()
 
 lr_model.fit(X_train, y_train)
 
-
 example_predict = lr_model.predict(X_test)
-
 
 print(lr_model.predict_proba(X_test))
 print(lr_model.score(X_test,y_test))
-
 print(y.mean())
 
-
+'''
 
 
 
