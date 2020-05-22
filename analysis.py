@@ -10,6 +10,9 @@ import requests
 import urllib.request
 from bs4 import BeautifulSoup
 import matplotlib.pyplot as plt
+from sklearn.model_selection import train_test_split
+from sklearn.linear_model import LogisticRegression
+
 
 
 def process_champ_name(champ_name):
@@ -93,7 +96,7 @@ def extract_game_from_row(row_of_interest, verbose=True):
 	return game
 
 
-
+'''
 
 champ_chars = pd.read_csv('data/champ_chars.csv')
 champ_chars.name = [process_champ_name(champ_chars.name[i]) for i in range(len(champ_chars.index.values))]
@@ -101,10 +104,10 @@ champ_chars.set_index('name', inplace = True)
 
 
 # scrap every row
-params = [('LPL','Spring',2020)]#,('LCK','Spring',2020),('LEC','Spring',2020),('LCS','Spring',2020),
-#		('LPL','Spring',2019),('LCK','Spring',2019),('LEC','Spring',2019),('LCS','Spring',2019),
-#		('LPL','Summer',2019),('LCK','Summer',2019),('LEC','Summer',2019),('LCS','Summer',2019),
-#		('LPL','Spring',2018),('LCK','Spring',2018)]
+params = [('LPL','Spring',2020),('LCK','Spring',2020),('LEC','Spring',2020),('LCS','Spring',2020),
+		('LPL','Spring',2019),('LCK','Spring',2019),('LEC','Spring',2019),('LCS','Spring',2019),
+		('LPL','Summer',2019),('LCK','Summer',2019),('LEC','Summer',2019),('LCS','Summer',2019),
+		('LPL','Spring',2018),('LCK','Spring',2018)]
 
 
 
@@ -126,7 +129,6 @@ for param in params:
 	for row in table_rows:
 		game = extract_game_from_row(row, verbose = False) 
 
-
 		blue_champs = list(game.blue_champs)
 
 		blue_ind = np.in1d(champ_chars.index.values, blue_champs)
@@ -136,9 +138,6 @@ for param in params:
 
 		red_ind = np.in1d(champ_chars.index.values, red_champs)
 		red_mat = champ_chars.iloc[red_ind]
-
-		#print(blue_mat)
-		#print(red_mat)
 
 		temp_b = blue_mat.sum(axis = 0)
 		temp_r = red_mat.sum(axis = 0)
@@ -150,3 +149,42 @@ for param in params:
 
 
 print(df_games)
+
+df_games.to_csv('data/game_stats.csv', index = False)
+
+
+'''
+
+
+
+df_games = pd.read_csv('data/game_stats.csv')
+
+X = df_games.iloc[:,1:].to_numpy()
+y = df_games.blue_win.to_numpy()
+
+
+X_train, X_test, y_train, y_test = train_test_split(
+	X, y, test_size=0.2, random_state=42)
+
+lr_model = LogisticRegression()
+
+lr_model.fit(X_train, y_train)
+
+example_predict = lr_model.predict(X_test)
+
+print(lr_model.predict_proba(X_test))
+
+print(lr_model.score(X_test,y_test))
+
+
+
+
+
+
+
+
+
+
+
+
+
