@@ -47,7 +47,8 @@ for name in champ_names:
 
 champ_chars = pd.read_csv('data/champ_chars.csv')
 
-df_full = pd.merge(df,champ_chars, on = 'name')#, right_on = 'name')
+
+df_full = pd.merge(df,champ_chars, on = 'name')
 
 
 df_full = champ_chars
@@ -187,7 +188,20 @@ def extract_game_from_row(row_of_interest, verbose=True):
 
 
 
+
+
+
+
+
+
+
+
+
+'''
+
 df_score = pd.DataFrame(columns = ['score', 'win'])
+
+
 
 # scrap every row
 url = construct_url_for_split("LCK", "Summer", 2018)
@@ -286,5 +300,5 @@ print(eff_rank(blue_mat))
 
 
 
-
+'''
 
