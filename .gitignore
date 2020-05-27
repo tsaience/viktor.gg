@@ -1,1 +1,3 @@
 .DS_Store
+chromedriver
+__pycache__
