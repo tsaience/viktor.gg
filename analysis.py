@@ -1,4 +1,3 @@
-
 import numpy as np
 import pandas as pd
 import random
@@ -14,22 +13,6 @@ from sklearn.model_selection import train_test_split
 from sklearn.linear_model import LogisticRegression
 
 
-def process_champ_name(champ_name):
-	split_by_space = "".join(champ_name.split(" "))
-	split_by_apostrophe = "".join(split_by_space.split("'"))
-	split_by_amp = "".join(split_by_apostrophe.split("&"))
-	lowercase = split_by_amp.lower()
-	return lowercase
-
-
-class LeagueGame:
-	def __init__(self, blue_champs, red_champs, blue_win, patch):
-		self.blue_champs = blue_champs
-		self.red_champs = red_champs
-		self.blue_win = blue_win
-		self.patch = patch
-
-
 # league: 'LEC', 'LCS', 'LPL', 'LCK'
 # year: self-explanatory
 # split: 'Spring', 'Summer'
@@ -39,60 +22,7 @@ def construct_url_for_split(league, split, year):
 	return url
 
 
-def extract_table_rows_from_url(url):
-	fp = urllib.request.urlopen(url)
-	page_bytes = fp.read()
-	page_html = page_bytes.decode("utf8")
-	fp.close()
-	soup = BeautifulSoup(page_html, 'html.parser')
-	draft_table = soup.find_all('table', id="pbh-table")[0]
-	table_rows = draft_table.find_all('tr')[2:]
-	return table_rows
 
-
-
-
-def extract_game_from_row(row_of_interest, verbose=True):
-
-	table_columns = row_of_interest.find_all('td')
-	blue, red = table_columns[1], table_columns[2]
-
-	blue_win = False
-	if blue.get("class") != None and blue.get("class")[0] == "pbh-winner":
-		blue_win = True
-
-	patch = table_columns[4].get_text()
-
-	champs_columns = table_columns[11:15] + table_columns[19:22]
-
-	# bp1, rp1-2, bp2-3, rp3, rp4, bp4-5, rp5
-
-	non_champ_classes = {'pbh-blue', 'pbh-cell', 'pbh-red', 'pbh-divider'}
-
-	blue_champs = set()
-	red_champs = set()
-
-	for i in range(len(champs_columns)):
-		column = champs_columns[i]
-		classes = column.get("class")
-		for column_class in classes:
-			if column_class not in non_champ_classes:
-				champ = column_class.split("-")[1]
-				if i in {0, 2, 5}:
-					blue_champs.add(champ)
-				else:
-					red_champs.add(champ)
-
-	game = LeagueGame(blue_champs, red_champs, blue_win, patch)
-
-	if verbose:
-		print("game blue champs: ", game.blue_champs)
-		print("game red champs: ", game.red_champs)
-		print("game blue win: ", game.blue_win)
-		print("game patch: ", game.patch)
-		print()
-
-	return game
 
 
 

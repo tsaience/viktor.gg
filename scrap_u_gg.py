@@ -1,46 +1,24 @@
 import time
-import pickle
 from bs4 import BeautifulSoup
 from selenium import webdriver
 from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.common.by import By
-from models import *
+from models import DuoInfo, MatchupInfo
+from utils import process_champ_name, export_pickle, read_pickle
 
 
 chrome_options = Options()
 chrome_options.add_argument("--headless")
 chrome_options.add_argument("window-size=1920,1080")
+chromedriver_path = "chromedriver"  # SET THIS UP FOR YOUR COMPUTER
 browser = webdriver.Chrome(
-    executable_path="../chromedriver", options=chrome_options)
+    executable_path=chromedriver_path, options=chrome_options)
 
 # master matchup dict, {(champ, role): {(matchup, role): matchupinfo}}
 # master duo dict, {(champ, role): {(duo, role): duoinfo}}}
 
-### converts champ names to lowercase, space, punction free rep
-def process_champ_name(champ_name):
-    champ_name_lower = champ_name.lower()
-    champ_name_processed = "".join(champ_name_lower.split("'"))
-    champ_name_processed_space = "".join(champ_name_processed.split(" "))
-    champ_name_processed_and = champ_name_processed_space.split("&")[0]
-    champ_name_processed_period = "".join(champ_name_processed_and.split("."))
-    return champ_name_processed_period
-
-
-# pickele utility functions
-def export_pickle(dictionary, filename):
-    with open(filename, 'wb') as handle:
-        pickle.dump(dictionary, handle, protocol=pickle.HIGHEST_PROTOCOL)
-
-
-def read_pickle(filename):
-    with open(filename, 'rb') as handle:
-        data = pickle.load(handle)
-        return data
-
-
-###### scraping functions #####
 
 def scrap_all_champs():
     url_all_champs = "https://u.gg/lol/champions"
@@ -54,11 +32,9 @@ def scrap_all_champs():
     all_champs = [process_champ_name(i.text) for i in champ_names_elements]
     return all_champs
 
-# scrap all champs for a role
-# role can be "top", "jungle", "middle", "adc", "support"
-
 
 def scrap_role_champs(role):
+    # role can be "top", "jungle", "middle", "adc", "support"
     url = "https://u.gg/lol/tier-list?role=" + role
     browser.get(url)
     for _ in range(3):
@@ -104,8 +80,8 @@ def scrap_champ_matchups(champ_name, role):
         jungle_cs_ft = float(features[7].text)
         num_matches = int("".join(features[8].text.split(",")))
 
-        matchup_info = MatchupInfo(example_patch, winrate, gold_ft, xp_ft, kills_ft,
-                                   cs_ft, jungle_cs_ft, num_matches)
+        matchup_info = MatchupInfo(example_patch, winrate, gold_ft, xp_ft,
+                                   kills_ft, cs_ft, jungle_cs_ft, num_matches)
 
         winrate_dict[(processed_champ, role)] = matchup_info
 
@@ -153,13 +129,14 @@ def scrap_champ_synergies(champ_name, role):
         num_matches = int("".join(features[8].text.split(",")))
 
         duo_info = DuoInfo(example_patch, winrate, gold_ft, xp_ft, kills_ft,
-                           cs_ft, team_gold_ft, carry_perc, duo_carry_perc, num_matches)
+                           cs_ft, team_gold_ft, carry_perc, duo_carry_perc,
+                           num_matches)
 
         synergy_dict[(processed_champ, synergy_role)] = duo_info
 
     return synergy_dict
 
-### master scraper per role ###
+# master scrapers per role
 
 
 def scrap_all_synergies_per_role():
@@ -178,7 +155,7 @@ def scrap_all_synergies_per_role():
     print('masters2')
     print(master_synergies_dict)
     print()
-    export_pickle(master_synergies_dict, "master_syngeries_dict.pickle")
+    export_pickle(master_synergies_dict, "master_synergies_dict.pickle")
 
 
 def scrap_all_matchups_per_role():
@@ -202,13 +179,13 @@ def scrap_all_matchups_per_role():
 
 # functions to make dictionary symmetric
 
-def make_matchups_symmetric(master_matchups_dict):
-    for champ_tuple in list(master_matchups_dict.keys()):
-        value = master_matchups_dict[champ_tuple]
+def make_matchups_symmetric(matchups_dict):
+    for champ_tuple in list(matchups_dict.keys()):
+        value = matchups_dict[champ_tuple]
         for champ_tuple_2 in value.keys():
-            if champ_tuple_2 not in master_matchups_dict or \
-                    champ_tuple not in master_matchups_dict[champ_tuple_2]:
-                og_matchup = master_matchups_dict[champ_tuple][champ_tuple_2]
+            if champ_tuple_2 not in matchups_dict or \
+                    champ_tuple not in matchups_dict[champ_tuple_2]:
+                og_matchup = matchups_dict[champ_tuple][champ_tuple_2]
                 new_matchup_info = \
                     MatchupInfo(
                         patch=og_matchup.patch,
@@ -220,9 +197,9 @@ def make_matchups_symmetric(master_matchups_dict):
                         jungle_cs_ft=-og_matchup.jungle_cs_ft,
                         num_matches=og_matchup.num_matches
                     )
-                if champ_tuple_2 not in master_matchups_dict:
-                    master_matchups_dict[champ_tuple_2] = dict()
-                master_matchups_dict[champ_tuple_2][champ_tuple] = new_matchup_info
+                if champ_tuple_2 not in matchups_dict:
+                    matchups_dict[champ_tuple_2] = dict()
+                matchups_dict[champ_tuple_2][champ_tuple] = new_matchup_info
 
     print("matchups made SYMMETRIC")
 
@@ -291,7 +268,7 @@ if __name__ == "__main__":
     export_pickle(master_matchups_dict, "master_matchups_dict.pickle")
 
     scrap_all_synergies_per_role()
-    master_syngeries_dict = read_pickle("master_syngeries_dict.pickle")
+    master_syngeries_dict = read_pickle("master_synergies_dict.pickle")
     make_synergies_symmetric(master_syngeries_dict)
     check_synergies_symmetric(master_syngeries_dict)
     export_pickle(master_matchups_dict, "master_synergies_dict.pickle")

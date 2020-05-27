@@ -23,3 +23,10 @@ class MatchupInfo:
         self.cs_ft = cs_ft
         self.jungle_cs_ft = jungle_cs_ft
         self.num_matches = num_matches
+
+class LeagueGame:
+    def __init__(self, blue_champs, red_champs, blue_win, patch):
+        self.blue_champs = blue_champs
+        self.red_champs = red_champs
+        self.blue_win = blue_win
+        self.patch = patch
