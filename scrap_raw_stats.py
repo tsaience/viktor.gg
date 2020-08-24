@@ -3,48 +3,207 @@
 import numpy as np
 import pandas as pd
 import random
-from sklearn.preprocessing import StandardScaler
+from sklearn.preprocessing import MultiLabelBinarizer, StandardScaler
 from sklearn.decomposition import PCA
-import cassiopeia as cass
+from sklearn.cluster import KMeans
+#import cassiopeia as cass
 import json 
 import requests  
 import urllib.request
 from bs4 import BeautifulSoup
 import matplotlib.pyplot as plt
-import seaborn as sns
+#import seaborn as sns
 
 
 
-url = "http://ddragon.leagueoflegends.com/cdn/10.10.3216176/data/en_US/champion.json" 
-r = requests.get(url=url) 
 
 
-json_file = r.json()
-
-data = json_file['data']
-
-
-
-champ_names = list(data.keys())
-name = champ_names[0]
-cols = list(['name'])
-cols.extend(list(data[name]['stats'].keys()))
+def process_names(champ_name):
+	split_by_space = "".join(champ_name.split(" "))
+	split_by_apostrophe = "".join(split_by_space.split("'"))
+	split_by_amp = "".join(split_by_apostrophe.split("&"))
+	lowercase = split_by_amp.lower()
+    
+	return lowercase
 
 
 
-df = pd.DataFrame(columns = cols)
+def load_data():
+    
+    url = "http://ddragon.leagueoflegends.com/cdn/10.16.1/data/en_US/champion.json" 
+    r = requests.get(url=url) 
+    
+    json_file = r.json()
+    
+    data = json_file['data']
+    
+    champ_names = list(data.keys())
+    name = champ_names[0]
+    cols = list(['name'])
+    cols.extend(list(data[name]['stats'].keys()))
+    cols.extend(list(data[name]['info'].keys()))
+    cols.extend(['tags'])
+    
+    df = pd.DataFrame(columns = cols)
 
-for name in champ_names:
-	dict_temp = dict()
-	dict_temp['name'] = data[name]['id']
+    
+    # Input champ data 
+    for name in champ_names:
+        dict_temp = dict()
+        dict_temp['name'] = data[name]['name']
+        
+        dict_temp.update(data[name]['stats'])
+        dict_temp.update(data[name]['info'])
+        dict_temp['tags'] = [data[name]['tags']]
+                
+        df_temp = pd.DataFrame(dict_temp, index = [0])
+        
+        df = df.append(df_temp, ignore_index = True)
+            
+        
+    # Process champ names for consistency
+    df.name = [process_names(df.name[i]) for i in range(len(df.index.values))]
+    
+    df.set_index('name', inplace = True)
+    
+    
+    # One-hot encoding of riot's tags   
+    mlb = MultiLabelBinarizer()
+    
+    df_onehot = pd.DataFrame(mlb.fit_transform(df.loc[:,'tags']), columns = mlb.classes_, index = df.index)
+    
+    df = df.drop('tags', axis = 1).merge(df_onehot, left_index = True, right_index = True)
+    
+    df.columns = [process_names(item) for item in df.columns.values]
+    
+    
+    return (json_file, df)
 
-	dict_temp.update(data[name]['stats'])
-
-	df_temp = pd.DataFrame(dict_temp, index = [0])
-
-	df = df.append(df_temp, ignore_index = True)
 
 
+def pca_analysis(df, n_comp, n_champs_print = 10, plot = False, show = False, scale = True):
+    
+    pca = PCA(n_comp)
+
+    if scale:
+        scaler = StandardScaler()
+        temp = pca.fit_transform(scaler.fit_transform(df))
+
+    else:
+        temp = pca.fit_transform(df)
+    
+    
+    # Data of output matrix
+    df_fitted = pd.DataFrame(temp, index = df.index,
+                             columns = ['PC'+str(i) for i in range(1,n_comp+1)])
+
+    # Show top/bot n_champs_print champions for each PC
+    if show:
+        for col in df_fitted.columns:
+        	temp = df_fitted.loc[:,col] 
+        
+        	print(f'\n{col}: High + Low Champions')
+        	print(temp.sort_values(ascending = False).iloc[0:n_champs_print].reset_index().values)
+        	print('...')
+        	print(temp.sort_values(ascending = True).iloc[0:n_champs_print].sort_values(ascending = False).reset_index().values)
+    
+    # Plot 1st two PC's
+    if plot:
+        x = df_fitted.PC1
+        y = df_fitted.PC2
+        
+        fig, ax = plt.subplots(figsize = (7,7))
+        ax.scatter(x, y)
+        for i, txt in enumerate(df_fitted.index.values):
+            ax.annotate(txt, (x[i], y[i]))
+        plt.show()
+        
+    return df_fitted
+    
+
+
+def cluster_analysis(df, n_clusters = 3, plot = False, show = False, n_init = 50):
+    
+    kmeans = KMeans(n_clusters, n_init = n_init, random_state = 0)
+    
+    kmeans.fit(df)
+    
+    df_out = pd.DataFrame(kmeans.labels_, index = df.index, columns = ['labels'])
+    
+    
+    if show:
+        print(df_out.sort_values('labels'))
+
+    if plot:
+        x = df.PC1
+        y = df.PC2
+        
+        fig, ax = plt.subplots(figsize = (7,7))
+        ax.scatter(x, y, kmeans.labels_)
+        for i, txt in enumerate(df_fitted.index.values):
+            ax.annotate(txt, (x[i], y[i]))
+        plt.show()
+    
+    
+    return df_out
+    
+    
+    
+
+
+###################################################################################################
+###################################################################################################
+###################################################################################################
+    
+
+
+
+(json_file, df) = load_data()
+
+
+tops = ['camille','shen','jax','renekton','darius','garen','fiora','mordekaiser','irelia','riven','malphite','sett','akali','wukong','aatrox','yone','maokai','jayce','vladimir','ornn','tryndamere','volibear','sylas','gangplank','teemo','nasus','urgot','gnar','poppy','kayle','yasuo','lucian','sion','singed','kled','kennen','illaoi','chogath','yorick','rengar','hecarim','lillia','vayne','drmundo','quinn','rumble']
+jungs = ['leesin','kayn','khazix','ekko','graves','hecarim','evelynn','elise','nunuwillump','zac','nidalee','volibear','masteryi','lillia','shaco','fiddlesticks','karthus','vi','kindred','olaf','reksai','sylas','warwick','rengar','shyvana','jarvaniv','sett','nocturne','amumu','gragas','rammus','sejuani','ivern','udyr','skarner','jax','xinzhao','trundle']
+mids = ['yone', 'zed', 'yasuo', 'akali', 'sylas', 'ahri', 'orianna', 'kassadin', 'katarina', 'zoe', 'fizz', 'galio', 'vladimir', 'ekko', 'leblanc', 'cassiopeia', 'talon', 'diana', 'twistedfate', 'lux', 'irelia', 'syndra', 'veigar', 'lucian', 'qiyana', 'annie', 'malzahar', 'pantheon', 'viktor', 'lissandra', 'azir', 'velkoz', 'ryze', 'ziggs', 'xerath', 'neeko', 'pyke', 'anivia', 'swain', 'renekton', 'sett', 'corki']
+adcs = ['caitlyn', 'ezreal', 'ashe', 'jhin', 'lucian', 'kaisa', 'vayne', 'jinx', 'tristana', 'aphelios', 'draven', 'missfortune', 'senna', 'twitch', 'xayah', 'kalista', 'yasuo', 'sivir', 'kogmaw', 'lux', 'varus']
+sups = ['thresh', 'lulu', 'lux', 'morgana', 'senna', 'yuumi', 'nautilus', 'karma', 'blitzcrank', 'bard', 'leona', 'pyke', 'soraka', 'sona', 'nami', 'janna', 'pantheon', 'rakan', 'swain', 'zyra', 'alistar', 'sett', 'zilean', 'brand', 'braum', 'xerath', 'taric', 'velkoz', 'shaco', 'maokai', 'galio']
+
+
+roles = [tops, jungs, mids, adcs, sups]
+role_names = ['Top','Jungle','Mid','ADC','Support']
+
+
+n_comp = 4
+n_champs_print = 5
+plot = True
+show = False
+scale = True
+
+n_clusters = 3
+n_init = 50
+
+for i,role in enumerate(roles):
+    
+    print("\n%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%")
+    print(role_names[i])
+    print("%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%")
+    
+    
+    df_temp = df.loc[role,:].dropna(axis = 0)
+    
+    df_fitted = pca_analysis(df_temp, n_comp, n_champs_print, plot, show, scale)
+    
+    df_clusters = cluster_analysis(df_fitted, n_clusters, plot, show, n_init)
+
+
+
+
+
+
+
+
+
+
+'''
 champ_chars = pd.read_csv('data/champ_chars.csv')
 
 
@@ -243,7 +402,7 @@ for param in params:
 
 print(df_games)
 
-
+'''
 
 
 
