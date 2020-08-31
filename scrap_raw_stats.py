@@ -198,6 +198,8 @@ for i,role in enumerate(roles):
     
     df_fitted = pca_analysis(df_temp, n_comp, n_champs_print, False, show, scale)
     
+    
+    # do hierarchial clustering
     df_clusters = cluster_analysis(df_fitted, n_clusters, plot, show, n_init)
 
 
