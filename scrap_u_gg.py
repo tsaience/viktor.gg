@@ -12,12 +12,20 @@ from utils import process_champ_name, export_pickle, read_pickle
 chrome_options = Options()
 chrome_options.add_argument("--headless")
 chrome_options.add_argument("window-size=1920,1080")
-chromedriver_path = "chromedriver"  # SET THIS UP FOR YOUR COMPUTER
+chromedriver_path = "/Users/tsaience/chromedriver"  # SET THIS UP FOR YOUR COMPUTER
 browser = webdriver.Chrome(
     executable_path=chromedriver_path, options=chrome_options)
 
 # master matchup dict, {(champ, role): {(matchup, role): matchupinfo}}
 # master duo dict, {(champ, role): {(duo, role): duoinfo}}}
+
+roles_url = {
+    "middle": "mid-lane-tier-list",
+    "top": "top-lane-tier-list",
+    "support": "support-tier-list",
+    "adc": "adc-tier-list",
+    "jungle": "jungle-tier-list"
+}
 
 
 def scrap_all_champs():
@@ -35,7 +43,7 @@ def scrap_all_champs():
 
 def scrap_role_champs(role):
     # role can be "top", "jungle", "middle", "adc", "support"
-    url = "https://u.gg/lol/tier-list?role=" + role
+    url = "https://u.gg/lol/" + roles_url[role]
     browser.get(url)
     for _ in range(3):
         time.sleep(1)
@@ -96,6 +104,7 @@ def scrap_champ_matchups(champ_name, role):
 def scrap_champ_synergies(champ_name, role):
     url = "https://u.gg/lol/champions/" + champ_name + "/duos?role=" + role
     browser.get(url)
+    print("starting ", champ_name)
     print(url)
     duos_table = WebDriverWait(browser, 10).until(
         EC.presence_of_element_located((By.CLASS_NAME, "champion-duos-table"))
@@ -107,7 +116,6 @@ def scrap_champ_synergies(champ_name, role):
     synergy_dict = dict()
 
     example_patch = "10.10"  # scrap this later down the line
-    print("starting ", champ_name)
 
     for row in rows:
         features = row.find_all("div", {"class": "rt-td"})
@@ -152,9 +160,6 @@ def scrap_all_synergies_per_role():
             master_synergies_dict[(champ, role)] = synergy_dict
         print()
 
-    print('masters2')
-    print(master_synergies_dict)
-    print()
     export_pickle(master_synergies_dict, "master_synergies_dict.pickle")
 
 
@@ -171,9 +176,6 @@ def scrap_all_matchups_per_role():
             master_matchups_dict[(champ, role)] = winrate_dict
         print()
 
-    print('masters')
-    print(master_matchups_dict)
-    print()
     export_pickle(master_matchups_dict, "master_matchups_dict.pickle")
 
 
@@ -238,7 +240,8 @@ def check_matchups_symmetric(master_matchups_dict):
         for champ_tuple_2 in value.keys():
             if champ_tuple_2 not in master_matchups_dict or \
                     champ_tuple not in master_matchups_dict[champ_tuple_2]:
-                print("NOT SYMMETRIC: ", champ_tuple, champ_tuple_2)
+                #print("NOT SYMMETRIC: ", champ_tuple, champ_tuple_2)
+                pass
             else:
                 wr1 = master_matchups_dict[champ_tuple][champ_tuple_2].winrate
                 wr2 = master_matchups_dict[champ_tuple_2][champ_tuple].winrate
@@ -252,13 +255,13 @@ def check_synergies_symmetric(master_synergy_dict):
         for champ_tuple_2 in value.keys():
             if champ_tuple_2 not in master_synergy_dict or \
                     champ_tuple not in master_synergy_dict[champ_tuple_2]:
-                print("NOT SYMMETRIC", champ_tuple, champ_tuple_2)
+                # print("NOT SYMMETRIC", champ_tuple, champ_tuple_2)
+                pass
             else:
                 sn_1 = master_synergy_dict[champ_tuple][champ_tuple_2].winrate
                 sn_2 = master_synergy_dict[champ_tuple_2][champ_tuple].winrate
                 if abs(sn_1 - sn_2) > 1:
                     print("SYMMETRIC", sn_1, sn_2)
-
 
 if __name__ == "__main__":
     scrap_all_matchups_per_role()

@@ -23,7 +23,6 @@ def process_names(champ_name):
 	split_by_apostrophe = "".join(split_by_space.split("'"))
 	split_by_amp = "".join(split_by_apostrophe.split("&"))
 	lowercase = split_by_amp.lower()
-    
 	return lowercase
 
 
