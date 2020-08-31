@@ -127,6 +127,11 @@ def cluster_analysis(df, n_clusters = 3, plot = False, show = False, n_init = 50
     
     kmeans.fit(df)
     
+    colors = ['red','blue','green','orange','yellow','brown','gray']
+    
+    c = [colors[i] for i in kmeans.labels_]
+
+    
     df_out = pd.DataFrame(kmeans.labels_, index = df.index, columns = ['labels'])
     
     
@@ -137,8 +142,10 @@ def cluster_analysis(df, n_clusters = 3, plot = False, show = False, n_init = 50
         x = df.PC1
         y = df.PC2
         
+
+        
         fig, ax = plt.subplots(figsize = (7,7))
-        ax.scatter(x, y, kmeans.labels_)
+        ax.scatter(x, y, c = c)
         for i, txt in enumerate(df_fitted.index.values):
             ax.annotate(txt, (x[i], y[i]))
         plt.show()
@@ -189,7 +196,7 @@ for i,role in enumerate(roles):
     
     df_temp = df.loc[role,:].dropna(axis = 0)
     
-    df_fitted = pca_analysis(df_temp, n_comp, n_champs_print, plot, show, scale)
+    df_fitted = pca_analysis(df_temp, n_comp, n_champs_print, False, show, scale)
     
     df_clusters = cluster_analysis(df_fitted, n_clusters, plot, show, n_init)
 
