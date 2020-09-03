@@ -5,7 +5,8 @@ import pandas as pd
 import random
 from sklearn.preprocessing import MultiLabelBinarizer, StandardScaler
 from sklearn.decomposition import PCA
-from sklearn.cluster import KMeans
+from sklearn.cluster import KMeans, AgglomerativeClustering
+from scipy.cluster.hierarchy import dendrogram
 #import cassiopeia as cass
 import json 
 import requests  
@@ -121,40 +122,90 @@ def pca_analysis(df, n_comp, n_champs_print = 10, plot = False, show = False, sc
     
 
 
-def cluster_analysis(df, n_clusters = 3, plot = False, show = False, n_init = 50):
-    
-    kmeans = KMeans(n_clusters, n_init = n_init, random_state = 0)
-    
-    kmeans.fit(df)
-    
-    colors = ['red','blue','green','orange','yellow','brown','gray']
-    
-    c = [colors[i] for i in kmeans.labels_]
-
-    
-    df_out = pd.DataFrame(kmeans.labels_, index = df.index, columns = ['labels'])
+def cluster_analysis(df, figname, n_clusters = 3, plot = False, show = False, n_init = 50, clstr = 'kmeans'):
     
     
-    if show:
-        print(df_out.sort_values('labels'))
-
-    if plot:
-        x = df.PC1
-        y = df.PC2
+    if clstr == 'kmeans':
+        model = KMeans(n_clusters, n_init = n_init, random_state = 0)
         
-
+        model.fit(df)
         
-        fig, ax = plt.subplots(figsize = (7,7))
-        ax.scatter(x, y, c = c)
-        for i, txt in enumerate(df_fitted.index.values):
-            ax.annotate(txt, (x[i], y[i]))
-        plt.show()
+        colors = ['red','blue','green','orange','yellow','brown','gray']
+        c = [colors[i] for i in model.labels_]
+        
+        df_out = pd.DataFrame(model.labels_, index = df.index, columns = ['labels'])
+        
+        if show:
+            print(df_out.sort_values('labels'))
+    
+        if plot:
+            x = df.PC1
+            y = df.PC2
+            
+            fig, ax = plt.subplots(figsize = (7,7))
+            ax.scatter(x, y, c = c)
+            for i, txt in enumerate(df_fitted.index.values):
+                ax.annotate(txt, (x[i], y[i]))
+            plt.title(figname)
+            plt.savefig('fig/'+figname+'.pdf')
+            plt.show()
+        
+        
+        return (model,df_out)
     
     
-    return df_out
+    
+    elif clstr == 'agg':
+        model = AgglomerativeClustering(distance_threshold = 0, n_clusters = None, linkage = 'ward')
+
+        model.fit(df)
+        
+        if plot:
+            plot_dendrogram(model, figname, labels = df.index.values)
+        
+        
+        return (model, df)
+        
+        
+    else:
+        Exception('Unrecognized clustering type')
     
     
     
+    
+    
+    
+
+
+def plot_dendrogram(model, figname, **kwargs):
+    # Create linkage matrix and then plot the dendrogram
+    f,ax = plt.subplots(figsize = (10,7))
+
+    # create the counts of samples under each node
+    counts = np.zeros(model.children_.shape[0])
+    n_samples = len(model.labels_)
+    for i, merge in enumerate(model.children_):
+        current_count = 0
+        for child_idx in merge:
+            if child_idx < n_samples:
+                current_count += 1  # leaf node
+            else:
+                current_count += counts[child_idx - n_samples]
+        counts[i] = current_count
+
+    linkage_matrix = np.column_stack([model.children_, model.distances_,
+                                      counts]).astype(float)
+
+    # Plot the corresponding dendrogram
+    
+    dendrogram(linkage_matrix, **kwargs)
+    plt.xticks(rotation=90)
+    plt.title(figname)
+    plt.savefig('fig/'+figname+'.pdf')
+    plt.show()
+
+
+
 
 
 ###################################################################################################
@@ -170,7 +221,8 @@ def cluster_analysis(df, n_clusters = 3, plot = False, show = False, n_init = 50
 tops = ['camille','shen','jax','renekton','darius','garen','fiora','mordekaiser','irelia','riven','malphite','sett','akali','wukong','aatrox','yone','maokai','jayce','vladimir','ornn','tryndamere','volibear','sylas','gangplank','teemo','nasus','urgot','gnar','poppy','kayle','yasuo','lucian','sion','singed','kled','kennen','illaoi','chogath','yorick','rengar','hecarim','lillia','vayne','drmundo','quinn','rumble']
 jungs = ['leesin','kayn','khazix','ekko','graves','hecarim','evelynn','elise','nunuwillump','zac','nidalee','volibear','masteryi','lillia','shaco','fiddlesticks','karthus','vi','kindred','olaf','reksai','sylas','warwick','rengar','shyvana','jarvaniv','sett','nocturne','amumu','gragas','rammus','sejuani','ivern','udyr','skarner','jax','xinzhao','trundle']
 mids = ['yone', 'zed', 'yasuo', 'akali', 'sylas', 'ahri', 'orianna', 'kassadin', 'katarina', 'zoe', 'fizz', 'galio', 'vladimir', 'ekko', 'leblanc', 'cassiopeia', 'talon', 'diana', 'twistedfate', 'lux', 'irelia', 'syndra', 'veigar', 'lucian', 'qiyana', 'annie', 'malzahar', 'pantheon', 'viktor', 'lissandra', 'azir', 'velkoz', 'ryze', 'ziggs', 'xerath', 'neeko', 'pyke', 'anivia', 'swain', 'renekton', 'sett', 'corki']
-adcs = ['caitlyn', 'ezreal', 'ashe', 'jhin', 'lucian', 'kaisa', 'vayne', 'jinx', 'tristana', 'aphelios', 'draven', 'missfortune', 'senna', 'twitch', 'xayah', 'kalista', 'yasuo', 'sivir', 'kogmaw', 'lux', 'varus']
+#adcs = ['caitlyn', 'ezreal', 'ashe', 'jhin', 'lucian', 'kaisa', 'vayne', 'jinx', 'tristana', 'aphelios', 'draven', 'missfortune', 'senna', 'twitch', 'xayah', 'kalista', 'yasuo', 'sivir', 'kogmaw', 'lux', 'varus']
+adcs = ['caitlyn', 'ezreal', 'ashe', 'jhin', 'lucian', 'kaisa', 'vayne', 'jinx', 'tristana', 'aphelios', 'draven', 'missfortune', 'senna', 'twitch', 'xayah', 'kalista', 'sivir', 'kogmaw', 'varus']
 sups = ['thresh', 'lulu', 'lux', 'morgana', 'senna', 'yuumi', 'nautilus', 'karma', 'blitzcrank', 'bard', 'leona', 'pyke', 'soraka', 'sona', 'nami', 'janna', 'pantheon', 'rakan', 'swain', 'zyra', 'alistar', 'sett', 'zilean', 'brand', 'braum', 'xerath', 'taric', 'velkoz', 'shaco', 'maokai', 'galio']
 
 
@@ -178,11 +230,12 @@ roles = [tops, jungs, mids, adcs, sups]
 role_names = ['Top','Jungle','Mid','ADC','Support']
 
 
-n_comp = 4
+n_comp = 6
 n_champs_print = 5
 plot = True
 show = False
 scale = True
+clstr = 'agg'
 
 n_clusters = 3
 n_init = 50
@@ -200,7 +253,7 @@ for i,role in enumerate(roles):
     
     
     # do hierarchial clustering
-    df_clusters = cluster_analysis(df_fitted, n_clusters, plot, show, n_init)
+    (model,df_clusters) = cluster_analysis(df_fitted, role_names[i], n_clusters, plot, show, n_init, clstr = clstr)
 
 
 
