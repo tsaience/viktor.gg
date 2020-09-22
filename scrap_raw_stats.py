@@ -20,17 +20,21 @@ import matplotlib.pyplot as plt
 
 
 def process_names(champ_name):
-	split_by_space = "".join(champ_name.split(" "))
-	split_by_apostrophe = "".join(split_by_space.split("'"))
-	split_by_amp = "".join(split_by_apostrophe.split("&"))
-	lowercase = split_by_amp.lower()
-	return lowercase
+    split_by_space = "".join(champ_name.split(" "))
+    split_by_apostrophe = "".join(split_by_space.split("'"))
+    split_by_amp = "".join(split_by_apostrophe.split("&"))
+    split_by_period = "".join(split_by_amp.split("."))
+    split_by_period = "".join(split_by_amp.split("."))    
+    lowercase = split_by_period.lower()
+    return lowercase
 
 
 
-def load_data():
+
+
+def load_data(patch):
     
-    url = "http://ddragon.leagueoflegends.com/cdn/10.16.1/data/en_US/champion.json" 
+    url = "http://ddragon.leagueoflegends.com/cdn/"+patch+"/data/en_US/champion.json" 
     r = requests.get(url=url) 
     
     json_file = r.json()
@@ -76,8 +80,70 @@ def load_data():
     
     df.columns = [process_names(item) for item in df.columns.values]
     
+        
+    return (json_file, df, list(data.keys()))
+
+
+
+def get_core_items(champs_all, patch, champ_type = None):
     
-    return (json_file, df)
+    
+    items_all = dict()
+    
+    for champ in champs_all:
+        
+        url = "http://ddragon.leagueoflegends.com/cdn/"+patch+"/data/en_US/champion/"+champ+".json"
+        r = requests.get(url=url) 
+        
+        json_file = r.json()
+        
+        data_temp = json_file['data'][champ]
+            
+        # Potato-coding edge cases
+        if champ == 'Fiddlesticks':
+            champ = 'Fiddle'
+        if champ =='MonkeyKing':
+            champ = 'Wukong'
+        
+        # Search for Map
+        # DOES NOT DEFAULT TO ROLE-SPECIFIC ITEMIZATION
+        ids = np.where([process_names(temp['title'])==process_names(champ+'SR') for temp in data_temp['recommended']])[0]
+        items_temp = data_temp['recommended'][ids[0]]['blocks']
+        
+        # Search for Core Items
+        if champ_type == 'jungle':
+            ids = np.where([temp['type']=='essentialjungle' for temp in items_temp])[0]
+            
+            if len(ids)==0:
+                ids = np.where([temp['type']=='essential' for temp in items_temp])[0]        
+            
+        else:
+            ids = np.where([temp['type']=='essential' for temp in items_temp])[0]
+    
+        # More potato-coding edge cases
+        # Only Qiyana has no Essential Items - use 'early' instead
+        if len(ids)==0:
+            if champ_type == 'jungle':
+                ids = np.where([temp['type']=='earlyjungle' for temp in items_temp])[0]
+                
+                if len(ids)==0:
+                    ids = np.where([temp['type']=='early' for temp in items_temp])[0]        
+                
+            else:
+                ids = np.where([temp['type']=='early' for temp in items_temp])[0]
+        
+        # Save to Output
+        items_champ = [item['id'] for item in items_temp[ids[0]]['items']]
+        items_all[process_names(data_temp['name'])] = [items_champ]
+    
+    item_df = pd.DataFrame(items_all, index = ['Core_Items']).transpose()
+        
+    mlb = MultiLabelBinarizer()
+    item_df = pd.DataFrame(mlb.fit_transform(item_df['Core_Items']), columns = mlb.classes_, index = item_df.index)
+    
+    return item_df
+    
+
 
 
 
@@ -122,15 +188,18 @@ def pca_analysis(df, n_comp, n_champs_print = 10, plot = False, show = False, sc
     
 
 
-def cluster_analysis(df, figname, n_clusters = 3, plot = False, show = False, n_init = 50, clstr = 'kmeans'):
+
+
+
+def fit_clusters(df, figname, n_clusters = 3, plot = False, show = False, n_init = 50, clstr = 'kmeans'):
     
+    colors = ['red','blue','green','orange','yellow','brown','gray']
     
     if clstr == 'kmeans':
         model = KMeans(n_clusters, n_init = n_init, random_state = 0)
         
         model.fit(df)
         
-        colors = ['red','blue','green','orange','yellow','brown','gray']
         c = [colors[i] for i in model.labels_]
         
         df_out = pd.DataFrame(model.labels_, index = df.index, columns = ['labels'])
@@ -144,7 +213,7 @@ def cluster_analysis(df, figname, n_clusters = 3, plot = False, show = False, n_
             
             fig, ax = plt.subplots(figsize = (7,7))
             ax.scatter(x, y, c = c)
-            for i, txt in enumerate(df_fitted.index.values):
+            for i, txt in enumerate(df.index.values):
                 ax.annotate(txt, (x[i], y[i]))
             plt.title(figname)
             plt.savefig('fig/'+figname+'.pdf')
@@ -156,16 +225,41 @@ def cluster_analysis(df, figname, n_clusters = 3, plot = False, show = False, n_
     
     
     elif clstr == 'agg':
-        model = AgglomerativeClustering(distance_threshold = 0, n_clusters = None, linkage = 'ward')
+        
+        if n_clusters is None:
+            model = AgglomerativeClustering(distance_threshold = 0, n_clusters = None, linkage = 'ward')
 
-        model.fit(df)
+            model.fit(df)
+            
+            if plot:
+                plot_dendrogram(model, figname, labels = df.index.values)
+            
+            
+            return (model, df)
         
-        if plot:
-            plot_dendrogram(model, figname, labels = df.index.values)
-        
-        
-        return (model, df)
-        
+        else:
+            model = AgglomerativeClustering(distance_threshold = None, n_clusters = n_clusters, linkage = 'ward')
+
+            model.fit(df)
+            
+            c = [colors[i] for i in model.labels_]
+
+            df_out = pd.DataFrame(model.labels_, index = df.index, columns = ['labels'])
+
+            if plot:
+                x = df.PC1
+                y = df.PC2
+                
+                fig, ax = plt.subplots(figsize = (7,7))
+                ax.scatter(x, y, c = c)
+                for i, txt in enumerate(df.index.values):
+                    ax.annotate(txt, (x[i], y[i]))
+                plt.title(figname)
+                plt.savefig('fig/'+figname+'.pdf')
+                plt.show()
+            
+            
+            return (model, df)
         
     else:
         Exception('Unrecognized clustering type')
@@ -207,6 +301,14 @@ def plot_dendrogram(model, figname, **kwargs):
 
 
 
+def run_clustering_analysis(df, item_df_jung, item_df_lane, roles, role_names, 
+                            n_clusters = 2, clstr = 'kmeans', n_comp = 6, 
+                            n_champs_print = 5, plot = True, show = False, scale = True, n_init = 50):
+    
+
+    return
+
+
 
 ###################################################################################################
 ###################################################################################################
@@ -215,7 +317,12 @@ def plot_dendrogram(model, figname, **kwargs):
 
 
 
-(json_file, df) = load_data()
+(json_file, df, champ_list) = load_data(patch = "10.19.1")
+
+item_df_jung = get_core_items(champ_list, patch = "10.19.1", champ_type = 'jungle')
+item_df_lane = get_core_items(champ_list, patch = "10.19.1", champ_type = None)
+
+
 
 
 tops = ['camille','shen','jax','renekton','darius','garen','fiora','mordekaiser','irelia','riven','malphite','sett','akali','wukong','aatrox','yone','maokai','jayce','vladimir','ornn','tryndamere','volibear','sylas','gangplank','teemo','nasus','urgot','gnar','poppy','kayle','yasuo','lucian','sion','singed','kled','kennen','illaoi','chogath','yorick','rengar','hecarim','lillia','vayne','drmundo','quinn','rumble']
@@ -226,18 +333,22 @@ adcs = ['caitlyn', 'ezreal', 'ashe', 'jhin', 'lucian', 'kaisa', 'vayne', 'jinx',
 sups = ['thresh', 'lulu', 'lux', 'morgana', 'senna', 'yuumi', 'nautilus', 'karma', 'blitzcrank', 'bard', 'leona', 'pyke', 'soraka', 'sona', 'nami', 'janna', 'pantheon', 'rakan', 'swain', 'zyra', 'alistar', 'sett', 'zilean', 'brand', 'braum', 'xerath', 'taric', 'velkoz', 'shaco', 'maokai', 'galio']
 
 
+
 roles = [tops, jungs, mids, adcs, sups]
 role_names = ['Top','Jungle','Mid','ADC','Support']
 
 
-n_comp = 6
+
+
+
+n_comp = 8
 n_champs_print = 5
 plot = True
 show = False
-scale = True
+scale = False
 clstr = 'agg'
 
-n_clusters = 3
+n_clusters = [3,2,2,3,2]
 n_init = 50
 
 for i,role in enumerate(roles):
@@ -246,14 +357,29 @@ for i,role in enumerate(roles):
     print(role_names[i])
     print("%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%")
     
+    if role_names[i]=='Jungle':
+        df_items = item_df_jung.loc[role,:].dropna(axis = 0)
+    else:
+        df_items = item_df_lane.loc[role,:].dropna(axis = 0)
     
-    df_temp = df.loc[role,:].dropna(axis = 0)
+    
+    df_champ = df.loc[role,:].dropna(axis = 0)
+    
+    df_temp = df_champ.merge(df_items, how = 'outer', left_index = True, right_index = True)
+    
     
     df_fitted = pca_analysis(df_temp, n_comp, n_champs_print, False, show, scale)
     
     
-    # do hierarchial clustering
-    (model,df_clusters) = cluster_analysis(df_fitted, role_names[i], n_clusters, plot, show, n_init, clstr = clstr)
+    # do clustering
+    (model,df_clusters) = fit_clusters(df_fitted, role_names[i], n_clusters[i], plot, show, n_init, clstr = clstr)
+
+
+
+
+
+
+
 
 
 
